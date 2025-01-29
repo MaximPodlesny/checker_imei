@@ -13,14 +13,14 @@ async def command_start_handler(message: types.Message, state: FSMContext):
     url = f'{settings.app_host}:{settings.app_port}'
     button = types.InlineKeyboardButton(text="Приложение", web_app=types.WebAppInfo(url=url))
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[button]])
-    from bot.bot import bot
+    from bot import bot
     await bot.send_message(498283860, 'В start')
     await message.answer(
-         "Для авторизации введи:",
+         "Для авторизации введи ключ API",
       )
-    await message.answer(
-         "211695539",
-      )
+   #  await message.answer(
+   #       "211695539",
+   #    )
     await message.answer(
          "Для олучения информации об IMEI перейди в приложение",
          reply_markup=keyboard

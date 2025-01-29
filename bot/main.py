@@ -6,9 +6,9 @@ from aiogram import Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 
-from bot.bot import bot
-from bot.handlers import start_router, handlers_router
-from bot.middlewares.logging import LoggingMiddleware
+from bot import bot
+from handlers import start_router, handlers_router
+from middlewares.logging import LoggingMiddleware
 
 
 
