@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WB Product Info</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>WB Product Info</h1>
+        <div id="auth-container" style="display: block;">
+            <input type="text" id="authKeyInput" placeholder="Введите ключ">
+            <button id="authButton">Авторизоваться</button>
+        </div>
+        <div id="main-content" style="display: none;">
+          <input type="text" id="artikulInput" placeholder="Введите артикул">
+          <div class="buttons-container">
+              <button id="infoButton">О товаре</button>
+              <button id="subscribeButton">Подписаться</button>
+              <button id="unsubscribeButton">Отписаться</button>
+          </div>
+        </div>
+        <div id="error" class="error-message"></div>
+        <div id="result"></div>
+    </div>
+    <script src="/static/script_main.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+venv/
+.env
+alembic.ini
+key.pem
+sert.pem
+api/localhost+2-key.pem
+api/localhost+2.pem
+key.pem
+sert.pem
+localhost+2-key.pem
+localhost+2.pem

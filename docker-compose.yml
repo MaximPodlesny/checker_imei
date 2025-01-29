@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  web:
+    # build: . # uncomment if you want to build image
+    image: test_job_web:latest
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql+asyncpg://user:password@db:5432/store
+      BOT_TOKEN: 7015932948:AAHPjrZxk6X8BwNoJVfR9_DX3eHQwkPSdjw
+      APP_HOST: https://127.0.0.1
+      # APP_HOST: https://v2736677.hosted-by-vdsina.ru
+      APP_PORT: 8000
+    restart: always
+  db:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: store
+    volumes:
+      - db_data:/var/lib/postgresql/data
+  bot:
+    build: .
+    # image: test_job_bot:latest
+    command: python -m bot.main # or you can move it to dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://user:password@db:5432/store
+      BOT_TOKEN: 7015932948:AAHPjrZxk6X8BwNoJVfR9_DX3eHQwkPSdjw
+      # APP_HOST: https://v2736677.hosted-by-vdsina.ru
+      APP_HOST: https://127.0.0.1
+      APP_PORT: 8000
+    restart: always
+
+volumes:
+  db_data:
