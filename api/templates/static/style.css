@@ -84,7 +84,7 @@ input[type="text"]:focus {
     line-height: 1.6;
 }
 
-.product-info {
+/* .imei-info {
     text-align: left;
     padding: 30px;
     background-color: #fff;
@@ -92,9 +92,14 @@ input[type="text"]:focus {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     margin-top: 20px;
     width: 90%;
+} */
+.imei-info {
+    width: 500px; /* Или другое значение, подходящее для вашего макета */
+    margin: 0 auto; /* Центрирование контейнера */
+    text-align: left; /* Центрирование содержимого */
 }
 
-.product-info h2 {
+.imei-info h2 {
     margin-bottom: 15px;
     color: #2c3e50;
     font-size: 2em;
@@ -102,20 +107,26 @@ input[type="text"]:focus {
     padding-bottom: 5px;
 }
 
-.product-info p {
+.imei-info p {
     color: #555;
     margin-bottom: 10px;
     font-size: 1.1em;
     line-height: 1.5;
 }
+.imei-info img {
+    max-width: 60%; /* Изображение не будет шире, чем родительский контейнер */
+    height: auto;     /* Высота будет автоматически подстраиваться под ширину */
+    display: block;  /* Занимает всю ширину контейнера */
+    margin: 0 auto;   /* Центрирование по горизонтали */
+}
 
-.product-info img {
-    max-width: 100%;
+/* .imei-info img {
+    max-width: 80%;
     height: auto;
     border-radius: 10px;
     margin-bottom: 20px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
+} */
 
 .back-button {
     position: absolute;
@@ -142,6 +153,7 @@ input[type="text"]:focus {
     margin: 0;
     padding: 0;
 }
+
 
 /* body {
     background: black;
