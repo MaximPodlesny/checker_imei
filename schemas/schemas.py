@@ -1,16 +1,24 @@
 from pydantic import BaseModel
 
 
-class ProductRequest(BaseModel):
-    artikul: str
+class DeviceData(BaseModel):
+    deviceName: str
+    image: str
+    imei: str
+    estPurchaseDate: int
+    simLock: bool
+    warrantyStatus: str
+    repairCoverage: bool
+    technicalSupport: bool
+    modelDesc: str
+    demoUnit: bool
+    refurbished: bool
+    purchaseCountry: str
+    apple_region: str
+    fmiOn: bool
+    lostMode: bool
+    usaBlockStatus: str
+    network: str
 
-
-class ProductResponse(BaseModel):
-    name: str
-    artikul: str
-    price: float
-    rating: float
-    total_quantity: int
-
-class MessageResponse(BaseModel):
-   message: str
+class ImeiRequest(BaseModel):
+    imei: str

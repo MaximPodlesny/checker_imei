@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     """
     database_url: str
     bot_token: str
-    # secret_key: str
+    checker_api: str
     # gpt_key: str
     app_host: str
     app_port: str

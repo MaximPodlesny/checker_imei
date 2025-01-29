@@ -1,6 +1,8 @@
+import json
 import os
 import sys
 import time
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import httpx
@@ -17,14 +19,16 @@ from apscheduler.triggers.cron import CronTrigger
 
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from config.settings import settings
-from db.models import Subscription, get_session, Product, engine
-from schemas.schemas import ProductRequest, ProductResponse, MessageResponse
+# from db.models import Subscription, get_session, Product, engine
+from schemas.schemas import DeviceData, ImeiRequest
 
 
 
 app = FastAPI(docs_url="/api/v1/doc")
 scheduler = AsyncIOScheduler()
 #211695539 
+API_KEY_CKECKER = 'e4oEaZY1Kom5OXzybETkMlwjOCy3i8GSCGTHzWrhd4dc563b'
+# API_KEY_CKECKER = settings.checker_api
 
 origins = [
     f'{settings.app_host}:{settings.app_port}',  # Замените на адрес вашего веб-приложения
@@ -54,221 +58,92 @@ app.mount("/static", StaticFiles(directory="templates/static"), name="static")
 # async def on_shutdown():
 #     scheduler.shutdown()
 
-async def get_product_from_wb(artikul: str) -> dict:
-    url = f"https://card.wb.ru/cards/v1/detail?appType=1&curr=rub&dest=-1257786&spp=30&nm={artikul}"
+async def get_info_from_checker(imei: str) -> dict:
+    url = "https://api.imeicheck.net/v1/checks"
+    payload = json.dumps({
+        "deviceId": imei,
+        "serviceId": 1
+    })
+    headers = {
+        'Authorization': f'Bearer {API_KEY_CKECKER}',
+        'Accept-Language': 'en',
+    }
     async with httpx.AsyncClient() as client:
-        response = await client.get(url)
+        response = await client.post(url, headers=headers, data=payload)
         response.raise_for_status()
         data = response.json()
         if data.get("state") != 0:
            raise HTTPException(status_code=404, detail="Product not found on Wildberries")
-        product_data = data["data"]["products"][0]
+        imei_data = data["data"]["properties"]
         return {
-            "name": product_data["name"],
-            "artikul": str(product_data["id"]),
-            "price": product_data["salePriceU"] / 100,
-            "rating": product_data["rating"],
-            "total_quantity": sum([stock["qty"] for stock in product_data["sizes"][0]["stocks"]]),
+            "name": imei_data["deviceName"],
+            "image": imei_data["image"],
+            "imei": imei_data["imei"],
+            "simLock": imei_data["simLock"],
+            "repairCoverage": imei_data["repairCoverage"],
+            "technicalSupport": imei_data["technicalSupport"],
+            "modelDesc": imei_data["modelDesc"],
+            "demoUnit": imei_data["demoUnit"],
+            "refurbished": imei_data["refurbished"],
+            "apple/region": imei_data["apple/region"],
+            "fmiOn": imei_data["fmiOn"],
+            "lostMode": imei_data["lostMode"],
+            "usaBlockStatus": imei_data["usaBlockStatus"],
+            "network": imei_data["network"],
         }
 
-async def get_product_from_db(session: AsyncSession, artikul: str) -> Product:
-    query = select(Product).where(Product.artikul == artikul)
-    result = await session.execute(query)
-    return result.scalar_one_or_none()
 
 
-async def create_product(session: AsyncSession, product_data: dict) -> Product:
-   query = insert(Product).values(product_data).returning(Product)
-   result = await session.execute(query)
-   await session.commit()
-   return result.scalar_one()
-
-
-async def update_product(session: AsyncSession, artikul:str, product_data: dict) -> Product:
-    query = select(Product).where(Product.artikul == artikul)
-    result = await session.execute(query)
-    product = result.scalar_one()
-    if product:
-        for key, value in product_data.items():
-            setattr(product, key, value)
-        product.last_updated = func.now()
-        await session.commit()
-    return product
-
-async def add_subscription(session: AsyncSession, artikul: str):
-    query = select(Subscription).where(Subscription.artikul == artikul)
-    result = await session.execute(query)
-    if not result.scalar_one_or_none():
-        query = insert(Subscription).values(artikul=artikul)
-        await session.execute(query)
-        await session.commit()
-        print(f'Added subscription to {artikul}')
-    else:
-        print(f"Subscription to {artikul} already exists")
-
-
-async def restore_subscriptions():
-    async for session in get_session():
-        query = select(Subscription)
-        result = await session.execute(query)
-        for subscription in result.scalars():
-            scheduler.add_job(
-                scheduled_product_update,
-                trigger=CronTrigger(minute="*/3"),
-                args=[subscription.artikul, session],
-                id=subscription.artikul,
-                replace_existing=True,
-            )
-
-async def remove_subscription(session: AsyncSession, artikul: str):
-    query = delete(Subscription).where(Subscription.artikul == artikul)
-    await session.execute(query)
-    await session.commit()
-    job = scheduler.get_job(artikul)
-    if not job:
-        print(f"Subscription to {artikul} does not exist")
-        return
-    scheduler.remove_job(job_id=artikul)
-    print(f'Removed subscription to {artikul}')
-
-async def scheduled_product_update(artikul: str, session: AsyncSession):
-    try:
-        product_data = await get_product_from_wb(artikul)
-        existing_product = await get_product_from_db(session, product_data["artikul"])
-        if existing_product:
-            await update_product(session, product_data["artikul"], product_data)
-        else:
-           await create_product(session, product_data)
-        print(f'Updated product')
-    except Exception as e:
-         print(f"Error updating product {artikul}: {e}")
-
-@app.get('/api/v1/wb', response_model=ProductResponse)
-async def get_product_wb(
-    product_request: ProductRequest,
-    api_key: str = Depends(APIKeyHeader(name="Authorization", auto_error=False)),
-    session: AsyncSession = Depends(get_session)
-    ):
-    """
-    Эндпоинт для получения информации о товаре из wb.
-
-    Args:
-        product_request: Запрос с ID товара.
-        api_key: Токен для авторизации.
-        session: Сессия для работы с базой данных.
-
-    Returns:
-        Информация о товаре.
-    """
-    if api_key != "Bearer test_api_key":
-        raise HTTPException(status_code=401, detail="Невалидный токен")
-    try:
-        product_data = await get_product_from_wb(product_request.artikul)
-        return ProductResponse(
-               name=product_data.get('name'),
-               artikul=product_data.get('artikul'),
-               price=float(product_data.get('price')),
-               rating=float(product_data.get('rating')),
-               total_quantity=product_data.get('total_quantity')
-            )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-       raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/v1/products", response_model=ProductResponse)
+@app.post("/api/v1/imei", response_model=DeviceData)
 async def get_product_info(
-    product_request: ProductRequest,
+    imei_request: ImeiRequest,
     api_key: str = Depends(APIKeyHeader(name="Authorization", auto_error=False)),
-    session: AsyncSession = Depends(get_session)
     ):
     """
-    Эндпоинт для получения информации о товаре и записи в базу.
+    Эндпоинт для получения информации об IMEI.
 
     Args:
         product_request: Запрос с ID товара.
         api_key: Токен для авторизации.
-        session: Сессия для работы с базой данных.
 
     Returns:
-        Информация о товаре.
+        Информация о IMEI.
     """
-<<<<<<< HEAD
-    from bot import bot
+    from bot.bot import bot
     await bot.send_message(498283860, 'В start')
-=======
+
     print(api_key)
->>>>>>> d2a4e04ea3abbbdc1bc07eb6ac9af6e9e6d8260a
-    if api_key != "Bearer test_api_key":
+
+    if api_key != f"Bearer {API_KEY_CKECKER}":
         raise HTTPException(status_code=401, detail="Невалидный токен")
     try:
-        product_data = await get_product_from_wb(product_request.artikul)
-        existing_product = await get_product_from_db(session, product_data["artikul"])
-        if existing_product:
-            updated_product = await update_product(session, product_data["artikul"], product_data)
-            return ProductResponse(
-               name=updated_product.name,
-               artikul=updated_product.artikul,
-               price=float(updated_product.price),
-               rating=float(updated_product.rating),
-               total_quantity=updated_product.total_quantity
-            )
-        else:
-            created_product = await create_product(session, product_data)
-            return ProductResponse(
-               name=created_product.name,
-               artikul=created_product.artikul,
-               price=float(created_product.price),
-               rating=float(created_product.rating),
-               total_quantity=created_product.total_quantity
-            )
+        imei_data = await get_info_from_checker(imei_request)
+
+        return DeviceData(
+            deviceName = imei_data['deviceName'],
+            image = imei_data['image'],
+            imei = imei_data['imei'],
+            estPurchaseDate = imei_data['estPurchaseDate'],
+            simLock = imei_data['simLock'],
+            warrantyStatus = imei_data['warrantyStatus'],
+            repairCoverage = imei_data['repairCoverage'],
+            technicalSupport = imei_data['technicalSupport'],
+            modelDesc = imei_data['modelDesc'],
+            demoUnit = imei_data['demoUnit'],
+            refurbished = imei_data['refurbished'],
+            purchaseCountry = imei_data['purchaseCountry'],
+            apple_region = imei_data['apple_region'],
+            fmiOn = imei_data['fmiOn'],
+            lostMode = imei_data['lostMode'],
+            usaBlockStatus = imei_data['usaBlockStatus'],
+            network = imei_data['network'],
+        )
+        
     except HTTPException as e:
         raise e
     except Exception as e:
        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/v1/subscribe/{artikul}", response_model=MessageResponse)
-async def subscribe_product(artikul: str, api_key: str = Depends(APIKeyHeader(name="Authorization", auto_error=False)), session: AsyncSession = Depends(get_session)):
-    """
-    Эндпоинт для подписки на обновления данных о товаре.
-
-    Args:
-        artikul: Артикул товара.
-        api_key: Токен для авторизации.
-        session: Сессия для работы с базой данных.
-
-    Returns:
-        Сообщение о результате подписки.
-    """
-    if api_key != "Bearer test_api_key":
-        raise HTTPException(status_code=401, detail="Невалидный токен")
-    await add_subscription(session, artikul)
-    scheduler.add_job(
-        scheduled_product_update,
-        trigger=CronTrigger(minute="*/30"),
-        args=[artikul, session],
-        id=artikul,
-        replace_existing=True,
-    )
-    return {"message": f"Subscription for product {artikul} started."}
-
-@app.get("/api/v1/unsubscribe/{artikul}", response_model=MessageResponse)
-async def unsubscribe_product(artikul: str, api_key: str = Depends(APIKeyHeader(name="Authorization", auto_error=False)), session: AsyncSession = Depends(get_session)):
-    """
-    Эндпоинт для отписки от обновлений данных о товаре.
-
-    Args:
-        artikul: Артикул товара.
-        api_key: Токен для авторизации.
-        session: Сессия для работы с базой данных.
-
-    Returns:
-        Сообщение о результате отписки.
-    """
-    if api_key != "Bearer test_api_key":
-        raise HTTPException(status_code=401, detail="Невалидный токен")
-    await remove_subscription(session, artikul)
-    return {"message": f"Subscription for product {artikul} stopped."}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -276,9 +151,9 @@ async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/product.html", response_class=HTMLResponse)
+@app.get("/imei_info.html", response_class=HTMLResponse)
 async def read_product(request: Request):
-    return templates.TemplateResponse("product.html", {"request": request})
+    return templates.TemplateResponse("imei_info.html", {"request": request})
 
 if __name__ == "__main__":
       import uvicorn
